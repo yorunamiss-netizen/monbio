@@ -39,7 +39,7 @@ models support this model's answer). Verbalized confidence: at most one model, a
 | Should | 100 English paraphrases | weeks 8-9 |
 | Should | One full-precision (fp16) run to measure the 4-bit effect | week 9 |
 | Could | Second person codes a subset of failure categories | week 10-11 |
-| Could | Canary string and a small private split | at v1.0 |
+| Could | A small private split (the canary string was added 2026-11-19, when the repository went public) | at v1.0 |
 | Cut | MedMCQA, letter-only self-consistency, BioMistral, live demo | |
 
 ## Timeline

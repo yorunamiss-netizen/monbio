@@ -46,7 +46,7 @@ from monbio.scoring import (  # noqa: E402
 )
 
 BATCH_CHECK_TOLERANCE = 0.02  # in log-probability units
-from monbio.utils import DATA_DIR, read_jsonl, write_json  # noqa: E402
+from monbio.utils import CANARY, DATA_DIR, read_jsonl, write_json  # noqa: E402
 
 DEFAULT_CONDITION_FILES = {
     "en": DATA_DIR / "items_en.jsonl",
@@ -232,7 +232,8 @@ def main() -> None:
                     "device_placement": device_placement(model),
                     "finished_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
                     "environment": environment_info(),
-                    "example_prompts": examples,
+                    "example_prompts": examples,  # include a Mongolian question, hence the canary
+                    "canary": CANARY,
                 },
             )
             # A failed earlier attempt left an error file; the pilot report would still count it as failed.
