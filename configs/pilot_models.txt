@@ -1,0 +1,20 @@
+# Pilot candidates: 8 instruction-tuned models, 8-14B, from 7 developers.
+# Checked 2026-11-19 with scripts/check_models.py (tokenizer, chat template, letter tokens, model class).
+# Format: model_id [option=value ...]. Options: dtype, compute_dtype, load_in_4bit, trust_remote_code,
+# revision, batch_size. Lines starting with # are skipped.
+#
+# Gated models need a Hugging Face token (Kaggle secret HF_TOKEN) and a one-time license approval:
+#   meta-llama/Llama-3.1-8B-Instruct  (manual approval: request it now, it can take a while)
+#   swiss-ai/Apertus-v1.5-8B          (automatic approval)
+#
+# Mongolian tokens per English token on the instruction text (check_models.py): Gemma 4 1.87,
+# Ministral 3 1.90, Qwen3.5 1.93, Qwen3 2.27, GLM-4 2.30, Granite 4.2 2.80.
+
+Qwen/Qwen3.5-9B                              # Alibaba, 2026, hybrid linear attention
+Qwen/Qwen3-14B                               # Alibaba, 2025 (same developer: the pilot keeps the better one)
+google/gemma-4-12B-it compute_dtype=float32  # Google, 2026. Gemma models can overflow in float16 on T4
+mistralai/Ministral-3-14B-Instruct-2512-BF16 # Mistral, 2025-12. The repo without -BF16 is FP8, which T4 cannot run
+meta-llama/Llama-3.1-8B-Instruct             # Meta, 2024 (gated)
+swiss-ai/Apertus-v1.5-8B                     # Swiss AI, 2026, trained on many languages (gated, auto approval)
+ibm-granite/granite-4.2-8b                   # IBM, 2026
+zai-org/GLM-4-9B-0414                        # Zhipu, 2025

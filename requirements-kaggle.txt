@@ -1,0 +1,6 @@
+# Kaggle GPU runs. Kaggle already provides torch (transformers 5.23 needs torch >= 2.6).
+transformers==5.23.0
+accelerate==1.16.0
+bitsandbytes>=0.45
+openpyxl>=3.1
+pyarrow>=15

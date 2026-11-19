@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+.ipynb_checkpoints/
+# Model downloads and scratch output
+hf_cache/
+results/smoke/
+*.tmp
+# Lock files that Excel/LibreOffice create while a sheet is open
+~$*.xlsx
+.~lock.*#
+
+# Hugging Face download metadata
+.cache/
