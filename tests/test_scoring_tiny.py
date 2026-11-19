@@ -16,7 +16,13 @@ transformers = pytest.importorskip("transformers")
 tokenizers = pytest.importorskip("tokenizers")
 
 from monbio.prompts import build_prompts  # noqa: E402
-from monbio.scoring import Scorer, find_decision_step, letter_token_ids, render_chat  # noqa: E402
+from monbio.scoring import (  # noqa: E402
+    Scorer,
+    find_decision_step,
+    is_standalone_letter,
+    letter_token_ids,
+    render_chat,
+)
 from monbio.utils import read_jsonl, write_jsonl  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -88,6 +94,65 @@ def test_letter_tokens_are_distinct(tiny):
     assert len(flat) == len(set(flat))
 
 
+class FakeTokenizer:
+    """Just enough of a tokenizer for letter_token_ids: a vocabulary and single-token encoding."""
+
+    def __init__(self, tokens):
+        self.vocab = {t: i for i, t in enumerate(tokens)}
+
+    def get_vocab(self):
+        return dict(self.vocab)
+
+    def encode(self, text, add_special_tokens=False):
+        return [self.vocab[text]] if text in self.vocab else [-1, -1]
+
+
+def test_letter_tokens_include_merged_forms():
+    # Qwen3, Qwen3.5 and GLM-4 encode "(C)" as ["(C", ")"], so "(C" has to count as C.
+    tok = FakeTokenizer(["A", "B", "C", "D", "ĠA", "ĠB", "ĠC", "ĠD", "(C", "Ġ(C", "[A", "**B", "▁(B", '"D',
+                         "(Cell", "(", "'d", "AB", "(1"])
+    v = tok.vocab
+    ids = letter_token_ids(tok)
+    assert ids["C"] == sorted([v["C"], v["ĠC"], v["(C"], v["Ġ(C"]])
+    assert v["[A"] in ids["A"] and v["**B"] in ids["B"] and v["▁(B"] in ids["B"] and v['"D'] in ids["D"]
+    every = {t for t_ids in ids.values() for t in t_ids}
+    assert not {v["(Cell"], v["("], v["'d"], v["AB"], v["(1"]} & every
+
+
+def test_letters_inside_words_are_not_answers(tiny):
+    _, tok = tiny
+    owner = {t: k for k, v in letter_token_ids(tok).items() for t in v}
+
+    def detected(text):
+        toks = tok.encode(text, add_special_tokens=False)
+        step = find_decision_step(toks, set(owner), set(), standalone=lambda t: is_standalone_letter(tok, toks, t))
+        return owner[toks[step]] if step >= 0 else None
+
+    assert detected("C") == "C"
+    assert detected("The answer is: **C**") == "C"
+    assert detected("(C) Mitochondrion") == "C"
+    assert detected("Зөв хариулт: C") == "C"
+    assert detected("DNA") is None  # the D of a word is not the answer D
+    assert detected("CD4") is None
+    assert detected("Drosophila cells, so B.") == "B"
+
+
+def test_safetensors_pread_reads_and_restores(tmp_path):
+    from safetensors.torch import save_file
+    import transformers.modeling_utils as modeling_utils
+
+    from monbio.scoring import safetensors_pread
+
+    path = tmp_path / "w.safetensors"
+    save_file({"w": torch.arange(6, dtype=torch.float32).reshape(2, 3)}, str(path))
+    original = modeling_utils.safe_open
+    with safetensors_pread():
+        assert modeling_utils.safe_open is not original
+        with modeling_utils.safe_open(str(path), framework="pt", device="cpu", backend="mmap") as f:
+            assert torch.equal(f.get_tensor("w"), torch.arange(6, dtype=torch.float32).reshape(2, 3))
+    assert modeling_utils.safe_open is original
+
+
 def test_render_chat_modes(tiny):
     _, tok = tiny
     text, mode = render_chat(tok, "hello")
@@ -104,6 +169,8 @@ def test_find_decision_step():
     assert find_decision_step([11], letters, stop) == 0  # letter first
     assert find_decision_step([5, 0, 12], letters, stop) == -1  # stopped before any letter
     assert find_decision_step([5, 6, 7], letters, stop) == -1  # budget used up
+    # A letter that is part of a word is skipped; the next standalone letter counts.
+    assert find_decision_step([13, 5, 11], letters, stop, standalone=lambda t: t != 0) == 2
 
 
 def test_batching_does_not_change_scores(tiny):
