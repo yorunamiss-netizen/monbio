@@ -364,7 +364,9 @@ def environment_info() -> dict:
         "device": "cpu",
     }
     if torch.cuda.is_available():
-        info["device"] = ", ".join(torch.cuda.get_device_name(i) for i in range(torch.cuda.device_count()))
+        n_gpus = torch.cuda.device_count()
+        info["device"] = ", ".join(torch.cuda.get_device_name(i) for i in range(n_gpus))
+        info["gpu_memory_gb"] = [round(torch.cuda.get_device_properties(i).total_memory / 2**30, 1) for i in range(n_gpus)]
     try:
         import bitsandbytes
 
@@ -383,6 +385,46 @@ def free_memory() -> None:
             torch.cuda.empty_cache()
     except ImportError:
         pass
+
+
+def _gpu_in_use() -> bool:
+    import torch
+
+    return torch.cuda.is_available() and torch.cuda.is_initialized()
+
+
+def reset_gpu_peaks() -> None:
+    """Start a new peak-memory measurement on every GPU (call before loading a model)."""
+    import torch
+
+    if _gpu_in_use():
+        for i in range(torch.cuda.device_count()):
+            torch.cuda.reset_peak_memory_stats(i)
+
+
+def gpu_peaks_gb() -> list[float] | None:
+    """Most GPU memory PyTorch held on each GPU since reset_gpu_peaks(), in GB; None if no GPU was used.
+
+    This is reserved memory (the model, activations and PyTorch's cache), the amount that decides whether
+    the next allocation fits. nvidia-smi shows a little more, because it also counts the CUDA context.
+    """
+    import torch
+
+    if not _gpu_in_use():
+        return None
+    return [round(torch.cuda.max_memory_reserved(i) / 2**30, 3) for i in range(torch.cuda.device_count())]
+
+
+def device_placement(model) -> dict[str, float]:
+    """GB of weights on each device, for example {"cuda:0": 4.2, "cuda:1": 4.4}.
+
+    Counted from the parameters themselves, because transformers records a device map (hf_device_map)
+    only when the model is split. On a GPU run, weights on "cpu" or "meta" (offloaded) make it very slow.
+    """
+    sizes: dict[str, int] = {}
+    for p in model.parameters():
+        sizes[str(p.device)] = sizes.get(str(p.device), 0) + p.numel() * p.element_size()
+    return {device: round(n / 2**30, 3) for device, n in sizes.items()}
 
 
 def prompt_record(p: Prompt) -> dict:

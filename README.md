@@ -70,7 +70,8 @@ python -m pytest -q
 python scripts/prepare_items.py
 ```
 
-Translation: follow `docs/TRANSLATION_GUIDE.md`. GPU scoring: open `notebooks/kaggle_pilot.ipynb` on Kaggle.
+Translation: follow `docs/TRANSLATION_GUIDE.md`. GPU scoring: open `notebooks/kaggle_pilot.ipynb` on Kaggle
+and run it cell by cell up to the GPU smoke test (section 2) before starting the full pilot.
 
 CPU smoke test with a small model (about 2 minutes):
 
@@ -86,7 +87,7 @@ scripts/         one script per pipeline step (each has --help)
 configs/         pilot_models.txt
 notebooks/       kaggle_pilot.ipynb
 docs/            DECISIONS.md, TRANSLATION_GUIDE.md, professor_email_draft.md
-tests/           34 tests, including an offline end-to-end run with a tiny random model
+tests/           35 tests, including offline end-to-end runs with a tiny random model (one needs a CUDA GPU)
 PLAN.md          scope, priorities, timeline
 PREDICTIONS.md   predictions and decision rules, written before running
 ```

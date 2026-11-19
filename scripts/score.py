@@ -5,12 +5,17 @@ Examples:
     python scripts/score.py --models-file configs/pilot_models.txt --items pilot \
         --conditions en,mn_mt --variants instr_en,instr_mn --load-in-4bit --out results/pilot
 
+    # GPU smoke test before the pilot (2 items, 1 option order), then a summary table:
+    python scripts/score.py --models-file configs/pilot_models.txt --items pilot --limit 2 --rotations 1 \
+        --load-in-4bit --out results/smoke
+    python scripts/smoke_report.py --results results/smoke --models-file configs/pilot_models.txt
+
     # Quick CPU smoke test with a tiny model:
     python scripts/score.py --model Qwen/Qwen3-0.6B --items pilot --limit 3 --conditions en \
         --dtype float32 --device-map none --out results/smoke
 
-Each model writes <out>/<model>.csv (one row per prompt) and <out>/<model>.meta.json.
-A model that fails (gated, out of memory) writes <model>.error.txt and the run continues.
+Each model writes <out>/<model>.csv (one row per prompt) and <out>/<model>.meta.json (settings, time,
+GPU memory). A model that fails (gated, out of memory) writes <model>.error.txt and the run continues.
 """
 
 from __future__ import annotations
@@ -30,11 +35,14 @@ from monbio.prompts import PROMPT_VERSION, build_prompts  # noqa: E402
 from monbio.scoring import (  # noqa: E402
     Scorer,
     batch_consistency,
+    device_placement,
     environment_info,
     free_memory,
+    gpu_peaks_gb,
     load_model,
     model_slug,
     render_chat,
+    reset_gpu_peaks,
 )
 
 BATCH_CHECK_TOLERANCE = 0.02  # in log-probability units
@@ -163,12 +171,14 @@ def main() -> None:
         started = time.time()
         model = scorer = None
         try:
+            reset_gpu_peaks()
             model, tokenizer = load_model(
                 model_id,
                 device_map=None if args.device_map == "none" else args.device_map,
                 cache_dir=cache_dir,
                 **settings,
             )
+            load_seconds = time.time() - started  # download and loading
             scorer = Scorer(model, tokenizer, batch_size=batch_size, max_new_tokens=args.max_new_tokens)
             batch_check = None
             if batch_size > 1:
@@ -179,7 +189,10 @@ def main() -> None:
                 if batch_check > BATCH_CHECK_TOLERANCE:
                     print(f"[{model_id}] batched scores differ by {batch_check:.3f}; using batch size 1")
                     scorer.batch_size = batch_size = 1
+            score_started = time.time()
             rows = scorer.score_prompts(prompts, model_id)
+            score_seconds = time.time() - score_started  # scoring only, without the batch check
+            gpu_peaks = gpu_peaks_gb()
             with open(csv_path, "w", encoding="utf-8", newline="") as f:
                 writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
                 writer.writeheader()
@@ -213,18 +226,25 @@ def main() -> None:
                     "n_nonfinite": n_bad,
                     "n_no_letter": n_no_letter,
                     "seconds": round(time.time() - started, 1),
+                    "load_seconds": round(load_seconds, 1),
+                    "score_seconds": round(score_seconds, 1),
+                    "gpu_peak_gb": gpu_peaks,
+                    "device_placement": device_placement(model),
                     "finished_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
                     "environment": environment_info(),
                     "example_prompts": examples,
                 },
             )
+            # A failed earlier attempt left an error file; the pilot report would still count it as failed.
+            (out_dir / f"{slug}.error.txt").unlink(missing_ok=True)
             good = [r for r in rows if not r["nonfinite"]]
             mass = sum(r["letter_mass"] for r in good) / max(1, len(good))
             first_mass = sum(r["first_letter_mass"] for r in good) / max(1, len(good))
             print(
-                f"[{model_id}] done in {time.time() - started:.0f}s. Letter mass: decision point {mass:.3f}, "
-                f"first token {first_mass:.3f}. No letter within budget: {n_no_letter}/{len(rows)}. "
-                f"Non-finite rows: {n_bad}"
+                f"[{model_id}] done in {time.time() - started:.0f}s (loading {load_seconds:.0f}s, scoring "
+                f"{score_seconds:.0f}s). Letter mass: decision point {mass:.3f}, first token {first_mass:.3f}. "
+                f"No letter within budget: {n_no_letter}/{len(rows)}. Non-finite rows: {n_bad}"
+                + (f". GPU memory peak: {' + '.join(f'{p:.1f}' for p in gpu_peaks)} GB" if gpu_peaks else "")
             )
         except Exception as e:  # keep going with the next model
             (out_dir / f"{slug}.error.txt").write_text(traceback.format_exc(), encoding="utf-8")

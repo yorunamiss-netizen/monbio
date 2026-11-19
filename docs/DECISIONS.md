@@ -128,3 +128,26 @@ Gemma 4 12B is a single 23.9 GB file. On the 16 GB test machine (no swap) Linux 
 ("unable to mmap ... Cannot allocate memory"). `load_model` now retries with the safetensors pread
 backend, which transformers itself uses on Windows for the same reason; Gemma 4 then loaded in 170-175 s.
 Kaggle's T4 machines reportedly have 29-32 GB of RAM, so the fallback should not be needed there.
+
+## 2026-11-19, third session
+
+**A short GPU smoke test runs before the pilot.**
+The first two sessions ran on machines without a GPU, so some things were never tested: 4-bit loading
+on a T4, a model split across Kaggle's two GPUs, GPU memory and speed. The notebook now has a smoke test
+(section 2): every model scores 2 pilot items in one option order (6 prompts), then
+`scripts/smoke_report.py` shows one row per model (loaded or failed, GPUs used, GPU memory peak, a rough
+pilot time, non-finite rows, letter mass). It runs only in interactive sessions. "Save & Run All" skips
+it (Kaggle sets `KAGGLE_KERNEL_RUN_TYPE=Batch` there), because that run starts on a fresh machine and
+would only download every model again.
+
+For the report, `score.py` now also records in `<model>.meta.json` the loading time (download included),
+the scoring time without the batch check, the GPU memory peak per GPU, and the GB of weights on each
+device. The weights are counted from the parameters, because transformers 5.23 sets `hf_device_map` only
+when a model is split across devices. `score.py` also deletes a model's old `.error.txt` when a later
+attempt succeeds; before, the pilot report still listed such a model as failed.
+
+The scorer's GPU code path ran for the first time, on a laptop RTX 4060 (8 GB; Python 3.14, torch 2.15.0
+with CUDA 13.2): the tiny test model loaded in 4-bit with float16 and `device_map="auto"` and scored
+without non-finite values (now `test_cli_gpu_4bit`, skipped on machines without a GPU). This checks the
+code only. How the real models behave on T4s, on two GPUs, and their memory and speed still need the
+Kaggle smoke test.

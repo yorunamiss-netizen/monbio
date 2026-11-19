@@ -1,5 +1,5 @@
 # Local use (data preparation, translation workflow, CPU smoke tests, analysis).
-# Tested 2026-11-19 with Python 3.13, torch 2.15.0, transformers 5.23.0.
+# Tested 2026-11-19 with Python 3.13 and 3.14, torch 2.15.0, transformers 5.23.0.
 numpy>=2.0
 pandas>=2.2
 pyarrow>=15
