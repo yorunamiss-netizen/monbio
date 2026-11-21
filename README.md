@@ -27,7 +27,8 @@ uncertainty estimation (Alfarano et al., 2026; Mongolian is not among its 22 lan
 | `data/prepare_report.md` | What was excluded and why, subject mix per batch |
 | `data/mt/mt_input.csv` | 1,950 English segments for machine translation |
 | `data/items_mn_mt.jsonl` | Raw Google Translate output (created by `import_mt.py`) |
-| `data/translation/batch_XX.xlsx` | Post-editing sheets, 50 items each (batch 8: 40), answer key left out |
+| `data/drafts/drafts_YYYY-MM-DD.jsonl` | First-pass drafts from the Google Sheet, with notes and CHECK marks (created by `import_drafts.py`) |
+| `data/translation/batch_XX.xlsx` | Final-check sheets, 50 items each (batch 8: 40), starting from the drafts, answer key left out |
 | `data/items_mn.jsonl` | Human-verified Mongolian items (created by `import_translations.py`) |
 | `data/glossary.csv` | English-Mongolian term glossary, seeded with frequent terms |
 
@@ -87,7 +88,7 @@ scripts/         one script per pipeline step (each has --help)
 configs/         pilot_models.txt
 notebooks/       kaggle_pilot.ipynb
 docs/            DECISIONS.md, TRANSLATION_GUIDE.md, professor_email_draft.md
-tests/           35 tests, including offline end-to-end runs with a tiny random model (one needs a CUDA GPU)
+tests/           40 tests, including offline end-to-end runs with a tiny random model (one needs a CUDA GPU)
 PLAN.md          scope, priorities, timeline
 PREDICTIONS.md   predictions and decision rules, written before running
 ```

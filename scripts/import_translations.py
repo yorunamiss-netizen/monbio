@@ -111,9 +111,13 @@ def main() -> None:
 
     write_jsonl(out_dir / "mn_segments.jsonl", seg_rows)
     verified_items = [by_id[i] for i in verified]
-    n = write_jsonl(
-        out_dir / "items_mn.jsonl", items_from_segments(verified_items, final, extra={"condition": "mn", "canary": CANARY})
-    )
+    # Items with a term that could not be verified (flag "term") get a sensitivity analysis (PREDICTIONS.md).
+    term_items = {split_seg_id(sid)[0] for sid, s in segs.items() if "term" in re.split(r"[^a-z]+", s.flag.lower())}
+    items_mn = items_from_segments(verified_items, final, extra={"condition": "mn"})
+    for it in items_mn:
+        it["has_unverified_term"] = it["item_id"] in term_items
+        it["canary"] = CANARY
+    n = write_jsonl(out_dir / "items_mn.jsonl", items_mn)
 
     minutes = sum(entry["minutes"] for log in logs.values() for entry in log)
     leak = leak_check(items, final, mt, verified) if verified else {}
@@ -130,6 +134,7 @@ def main() -> None:
         "mean_char_edit_rate_options": mean(o_rates) if o_rates else None,
         "mean_word_edit_rate_all": mean(r["word_edit_rate"] for r in all_rates) if all_rates else None,
         "flags": dict(flags),
+        "n_verified_with_unverified_term": sum(it["has_unverified_term"] for it in items_mn),
         "leak_check": leak,
         "warnings": warnings,
     }
@@ -154,6 +159,7 @@ def write_report(path: Path, stats: dict, verified: list[str], items: list[dict]
         "# Translation report",
         "",
         f"- Verified items: **{stats['n_verified']}** (dropped {stats['n_dropped']}, in progress {stats['n_in_progress']})",
+        f"- Verified items with an unverified term (flag 'term'): {stats['n_verified_with_unverified_term']}",
         f"- Minutes logged: {stats['minutes_logged']:.0f} "
         f"({fmt(stats['minutes_per_verified_item'], 1)} min per verified item)",
         f"- Segments changed from raw MT: {fmt(stats['share_segments_changed'])}",

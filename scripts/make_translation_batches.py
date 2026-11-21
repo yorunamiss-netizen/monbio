@@ -3,6 +3,8 @@
 Usage:
     python scripts/make_translation_batches.py            # all batches
     python scripts/make_translation_batches.py --batches 1-3
+    # Final-check sheets that start from the Google Sheet drafts (see scripts/import_drafts.py):
+    python scripts/make_translation_batches.py --drafts data/drafts/drafts_2026-11-21.jsonl
 
 Existing batch files are never overwritten unless you pass --overwrite, so edited work is safe.
 """
@@ -38,6 +40,7 @@ def main() -> None:
     parser.add_argument("--mt", default=str(DATA_DIR / "mt" / "mt_segments.jsonl"))
     parser.add_argument("--out-dir", default=str(DATA_DIR / "translation"))
     parser.add_argument("--batches", default="all", help="e.g. 1-3 or 1,2,5 or all")
+    parser.add_argument("--drafts", help="drafts_<date>.jsonl from import_drafts.py: start from these drafts")
     parser.add_argument("--overwrite", action="store_true")
     args = parser.parse_args()
 
@@ -45,6 +48,9 @@ def main() -> None:
     if not Path(args.mt).exists():
         sys.exit(f"{args.mt} not found. Run scripts/import_mt.py first.")
     mt = {row["seg_id"]: row["mt_raw"] for row in read_jsonl(args.mt)}
+    drafts = {row["seg_id"]: row for row in read_jsonl(args.drafts)} if args.drafts else None
+    if drafts is not None and set(drafts) != set(mt):
+        sys.exit(f"{args.drafts} does not cover the same segments as {args.mt}")
     n_batches = max(it["batch"] for it in items)
     for b in parse_range(args.batches, n_batches):
         members = sorted((it for it in items if it["batch"] == b), key=lambda it: it["order"])
@@ -55,7 +61,7 @@ def main() -> None:
         if path.exists() and not args.overwrite:
             print(f"batch {b}: {path} exists, left unchanged")
             continue
-        n = write_batch_sheet(members, mt, path, batch=b)
+        n = write_batch_sheet(members, mt, path, batch=b, drafts=drafts)
         print(f"batch {b}: {len(members)} items, {n} rows -> {path}")
 
 
