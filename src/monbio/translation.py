@@ -27,7 +27,8 @@ PART_LABELS = {"q": "question", "o1": "option 1", "o2": "option 2", "o3": "optio
 SHEET_COLUMNS = ["seg_id", "part", "english", "mt_raw", "mn_final", "checked", "flag", "note"]
 
 _CYRILLIC = re.compile(r"[Ѐ-ӿ]")
-_LATIN_WORD = re.compile(r"[A-Za-z]{3,}")
+_TOKEN_SPLIT = re.compile(r"[\s/–—-]+")  # spaces, slashes, dashes and hyphens
+_TOKEN_PUNCT = "()[]{}.,;:!?'\"“”‘’"
 _SHEET_ERRORS = ("#VALUE!", "#N/A", "#ERROR!", "#NAME?", "#REF!", "Loading...")
 
 
@@ -67,8 +68,17 @@ def write_mt_input(items: list[dict], path: str | Path) -> int:
 
 
 def needs_cyrillic(english: str) -> bool:
-    """Segments with real words should come back in Cyrillic; numbers or symbols may not."""
-    return bool(_LATIN_WORD.search(english))
+    """Segments with ordinary words should come back in Cyrillic. Symbols may stay in Latin letters: gene
+    names (APOE, BRCA1), karyotypes (47,XXX), formulas (ADP + P → ATP) and sequences (5′ GCU AAC 3′).
+
+    An ordinary word has 3 or more letters, only letters, and at least one lowercase letter ("Cell", "and",
+    the "linked" of "X-linked").
+    """
+    for token in _TOKEN_SPLIT.split(english):
+        word = token.strip(_TOKEN_PUNCT)
+        if len(word) >= 3 and word.isascii() and word.isalpha() and not word.isupper():
+            return True
+    return False
 
 
 def check_mt_rows(rows: list[dict], items: list[dict]) -> tuple[dict[str, str], list[str]]:

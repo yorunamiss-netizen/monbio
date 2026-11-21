@@ -12,6 +12,7 @@ from monbio.translation import (
     edit_rates,
     leak_check,
     levenshtein,
+    needs_cyrillic,
     read_batch_sheet,
     write_batch_sheet,
 )
@@ -111,6 +112,15 @@ def test_round_trip_and_import_script(tmp_path):
     assert items_mn[0]["options"][1] == "Митохондрь"
     assert items_mn[0]["answer"] == 1
     assert (data / "translation_report.md").exists()
+
+
+def test_symbols_may_stay_in_latin_letters():
+    # Real segments from the item set that Google Translate correctly left unchanged.
+    for symbol in ["APOE", "BRCA1", "47,XXX", "46,XX,der(14;21)(q10;q10)pat+21", "ADP + P → ATP",
+                   "NAD+ + H+ + 2e- → NADH", "5′ GCU AAC 3′", "pH 7"]:
+        assert not needs_cyrillic(symbol), symbol
+    for words in ["Cell", "DNA and RNA", "X-linked", "Golgi apparatus", "Which organelle makes ATP?"]:
+        assert needs_cyrillic(words), words
 
 
 def test_every_file_with_mongolian_text_has_the_canary(tmp_path):
